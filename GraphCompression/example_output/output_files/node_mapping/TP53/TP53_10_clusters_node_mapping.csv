@@ -1,0 +1,11 @@
+New_node,Original_nodes
+cluster 1,"SIRT1, HSP90AA1, TP53"
+cluster 0,RPA1
+cluster 7,"BCL2L1, BCL2"
+cluster 9,"TP53BP1, CDKN1A, CHEK2"
+cluster 3,"USP7, PTEN, MDM4"
+cluster 2,"MDM2, CREBBP, HDAC1, DAXX"
+cluster 8,"ATM, EP300"
+cluster 4,TP53BP2
+cluster 5,PPP1R13L
+cluster 6,SFN
