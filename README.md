@@ -44,6 +44,32 @@ To install dependencies, run:
 ```bash
 pip install requests pandas networkx matplotlib scikit-learn
 ```
+## Usage
+To run the script, use the following command:
+```bash
+python graph_compression.py -p PROTEIN_NAME -s SPECIES -n NODES_NUMBER -c CLUSTERS_NUMBER
+```
+or
+```bash
+python graph_compression.py -d DATA_FRAME -n NODES_NUMBER -c CLUSTERS_NUMBER
+```
+where:
+- `PRO
+
+TEIN_NAME` is the name or identifier of the protein.
+- `SPECIES` is the taxonomy identifier of the species (default is 9606 for humans).
+- `NODES_NUMBER` is the number of interacting partners to add.
+- `CLUSTERS_NUMBER` is the number of clusters for spectral clustering.
+- `DATA_FRAME` is the path to the input CSV file.
+
+## Example
+```bash
+python graph_compression.py -p TP53 -s 9606 -n 20 -c 10
+```
+or
+```bash
+python graph_compression.py -d /my_path/TP53_interaction_network.csv -n 20 -c 10
+# TP53_interaction_network.csv is available as test dataset in example_output/output_files/interaction_network
 
 ## Classes and Methods
 
@@ -171,31 +197,4 @@ Parses command-line arguments. Ensures that either a protein name or a data fram
 
 #### `main()`
 Main function that processes command-line arguments and initializes the appropriate Protein or DataFrame object and the Network object.
-
-## Usage
-To run the script, use the following command:
-```bash
-python graph_compression.py -p PROTEIN_NAME -s SPECIES -n NODES_NUMBER -c CLUSTERS_NUMBER
-```
-or
-```bash
-python graph_compression.py -d DATA_FRAME -n NODES_NUMBER -c CLUSTERS_NUMBER
-```
-where:
-- `PRO
-
-TEIN_NAME` is the name or identifier of the protein.
-- `SPECIES` is the taxonomy identifier of the species (default is 9606 for humans).
-- `NODES_NUMBER` is the number of interacting partners to add.
-- `CLUSTERS_NUMBER` is the number of clusters for spectral clustering.
-- `DATA_FRAME` is the path to the input CSV file.
-
-## Example
-```bash
-python graph_compression.py -p TP53 -s 9606 -n 20 -c 10
-```
-or
-```bash
-python graph_compression.py -d /my_path/TP53_interaction_network.csv -n 20 -c 10
-# TP53_interaction_network.csv is available as test dataset in example_output/output_files/interaction_network
 ```

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse
-import requests # Install using: python -m pip install requests
+import requests
 import os 
-import pandas as pd ## Install using: python -m pip install pandas
+import pandas as pd
 import io 
-import networkx as nx # Install using: python -m pip install networkx
-import matplotlib.pyplot as plt # Install using: python -m pip install matplotlib
-from sklearn.cluster import SpectralClustering # Install using: python -m pip install scikit-learn
+import networkx as nx
+import matplotlib.pyplot as plt
+from sklearn.cluster import SpectralClustering
+import subprocess
+import sys
 
 class Protein:
     def __init__(self, name, species, nodes_number):
@@ -41,7 +43,7 @@ class Protein:
                 # Read the response into a DataFrame
                 df_identifier = pd.read_csv(io.StringIO(http_response.text), sep='\t')
                 
-                #Get the value from the second column
+                # Get the value from the second column
                 string_identifier = df_identifier.iloc[0, 1]
 
             else:
@@ -51,7 +53,7 @@ class Protein:
             return string_identifier
         
     def get_interaction_network(self): 
-        # Retrieves the network interactions for your input protein in various text based formats
+        # Retrieves the network interactions for the input protein 
         print("Getting interaction network...")
     
         # URL of the interaction partners endpoint in the STRING API
@@ -61,7 +63,7 @@ class Protein:
         parameters_partners = {
             "identifiers": self.identifier,
             "add_nodes": self.nodes_number,
-    
+
         }
 
         # Send GET request to STRING API
@@ -103,15 +105,12 @@ class DataFrame:
 
     def get_input_df_name(self):
         # Returns the name of the input DataFrame file (if available).
-
         input_df_name = os.path.basename(self.df)
         return input_df_name 
 
 class Network:
     def __init__(self, cluster_number, protein = None, dataframe = None):
         self.cluster_number = cluster_number
-        self.protein = None
-        self.dataframe = None
         if protein is not None: 
             self.protein = protein
         elif dataframe is not None: 
@@ -121,44 +120,37 @@ class Network:
         self.compressed_interaction_network = self.get_compressed_interaction_network()
         
     def create_graph(self):
-         # Creates a graph from the interaction network data.
-        print("Creating graph...") 
+        """Creates a graph from the interaction network data."""
 
-        if self.protein is not None:
-            interaction_network = self.protein.interaction_network
-        elif self.dataframe is not None:
-            interaction_network = self.dataframe.input_df
-    
+        print("Creating graph...") 
+        # if dataframe is given it creates the network directly (otherwise the interaction data is retrieved from the protein name).
+        interaction_network = self.protein.interaction_network if self.protein else self.dataframe.input_df
+
         # Create an empty graph
         G = nx.Graph()
 
         try:
-
             # Add nodes and edges to the graph
             for index, row in interaction_network.iterrows():
                 G.add_node(row['preferredName_A'])
                 G.add_node(row['preferredName_B'])
                 G.add_edge(row['preferredName_A'], row['preferredName_B'], weight=row['score'])
 
-                #score = combined score of: 
-                    #nscore	= gene neighborhood score
-                    #fscore	= gene fusion score
-                    #pscore	= phylogenetic profile score
-                    #ascore	= coexpression score
-                    #escore	= experimental score
-                    #dscore	= database score
-                    #tscore	= textmining score
+                # note: score = combined score of: 
+                        #nscore	= gene neighborhood score
+                        #fscore	= gene fusion score
+                        #pscore	= phylogenetic profile score
+                        #ascore	= coexpression score
+                        #escore	= experimental score
+                        #dscore	= database score
+                        #tscore	= textmining score
 
             # Draw the graph
-            plt.figure(figsize=(10, 8))
+            plt.figure(figsize=(12, 8))
             pos = nx.spring_layout(G, seed=42)  # Nodes position
             nx.draw(G, pos, with_labels=True, node_size=1000, node_color='skyblue', font_size=8, font_weight='bold') 
 
-            if self.protein is not None: 
-                plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)} nodes) for {self.protein.name}')
-            
-            elif self.dataframe is not None: 
-                plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)} nodes) for {self.dataframe.input_df_name}')
+            plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)} nodes) for {self.protein.name}') if self.protein else plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)} nodes) for {self.dataframe.input_df_name}')
 
             # Create directory to store graph png
             folder = 'output_files'
@@ -177,7 +169,7 @@ class Network:
                     os.makedirs(subdirectory2)
 
                 # Define the file path for saving the PNG file
-                file_path = os.path.join(subdirectory2, f'{self.protein.name}_original_graph.png')
+                file_path = os.path.join(subdirectory2, f'{self.protein.name}_{len(G.nodes)}_nodes_original_graph.png')
 
             elif self.dataframe is not None: 
 
@@ -187,7 +179,7 @@ class Network:
                     os.makedirs(subdirectory2)
 
                 # Define the file path for saving the PNG file
-                file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}_original_graph.png')
+                file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}__{len(G.nodes)}_nodes_original_graph.png')
 
             plt.savefig(file_path, format='png')
 
@@ -197,7 +189,7 @@ class Network:
         return G
         
     def cluster_nodes(self, num_clusters):
-        # Clusters the nodes of the graph using Spectral Clustering.
+        """Clusters the nodes of the graph using Spectral Clustering."""
 
         try:
             # Convert the graph to a numpy adjacency matrix
@@ -217,7 +209,7 @@ class Network:
             return None
     
     def contract_edges(self, node_cluster_mapping):
-        # Contracts the edges between nodes belonging to the same cluster.
+        """Contracts the edges between nodes belonging to the same cluster."""
 
          # Create a new graph for the contracted version
         compressed_graph = nx.Graph()
@@ -239,6 +231,7 @@ class Network:
             return None
 
     def compress_graph(self):
+        """Compress the graph by clustering nodes and contracting edges."""
         print("Compressing graph...")
 
         num_clusters = self.cluster_number
@@ -269,7 +262,7 @@ class Network:
             if not os.path.exists(subdirectory2):
                 os.makedirs(subdirectory2)
 
-            file_path = os.path.join(subdirectory2, f'{self.protein.name}_node_mapping.csv')
+            file_path = os.path.join(subdirectory2, f'{self.protein.name}_{num_clusters}_clusters_node_mapping.csv')
             mapping_df.to_csv(file_path, index=False)
 
         elif self.dataframe is not None: 
@@ -278,11 +271,11 @@ class Network:
             if not os.path.exists(subdirectory2):
                 os.makedirs(subdirectory2)
 
-            file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}_node_mapping.csv')
+            file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}_{num_clusters}_clusters_node_mapping.csv')
             mapping_df.to_csv(file_path, index=False)
 
         # Creation of the compressed graph
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(12, 8))
         pos = nx.spring_layout(compressed_graph, seed=42)  
         nx.draw(compressed_graph, pos, with_labels=True, node_size=1000, node_color='skyblue', font_size=8, font_weight='bold')  
         
@@ -294,7 +287,8 @@ class Network:
             
         # Add legend with mapping information from DataFrame
         for i, row in mapping_df.iterrows():
-            plt.text(-1.1, -0.80 + 0.05*i, f"{row['New_node']}: {row['Original_nodes']}", fontsize=8, ha='left')
+            plt.text(-1.0, -0.80 + 0.05*i, f"{row['New_node']}: {row['Original_nodes']}", fontsize=8, ha='left', va='top')
+            plt.subplots_adjust(right=0.7, top=0.9)
 
         # Save the compressed graph as a PNG image
         folder = 'output_files'
@@ -326,7 +320,7 @@ class Network:
         return compressed_graph, node_original_mapping
 
     def get_compressed_interaction_network(self):
-        # Retrieves the interaction network for the compressed graph.
+        """Retrieves the interaction network for the compressed graph."""
         print("Computing compressed network...")
 
         interactions = []
@@ -392,7 +386,7 @@ class Network:
         return compressed_interaction_df
         
 def parse_args():
-
+    """Parse command-line arguments."""
     try: 
         parser = argparse.ArgumentParser(description="Graph Compression")
         parser.add_argument('-p', '--protein_name', type=str, required=False, help='Protein name or identifier')
@@ -420,6 +414,7 @@ def parse_args():
         exit(1)
 
 def main():
+    """Main function to run the script."""
     args = parse_args()
     protein_name = args.protein_name
     species = args.species
@@ -438,4 +433,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

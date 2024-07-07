@@ -55,6 +55,32 @@ To install dependencies, run:
 pip install requests pandas networkx matplotlib scikit-learn
 ```
 
+## Usage
+To run the script, use the following command:
+```bash
+python graph_compression.py -p PROTEIN_NAME -s SPECIES -n NODES_NUMBER -c CLUSTERS_NUMBER
+```
+or
+```bash
+python graph_compression.py -d DATA_FRAME -n NODES_NUMBER -c CLUSTERS_NUMBER
+```
+where:
+- `PROTEIN_NAME` is the name or identifier of the protein.
+- `SPECIES` is the taxonomy identifier of the species (default is 9606 for humans).
+- `NODES_NUMBER` is the number of interacting partners to add.
+- `CLUSTERS_NUMBER` is the number of clusters for spectral clustering.
+- `DATA_FRAME` is the path to the input CSV file.
+
+## Example
+```bash
+python graph_compression.py -p TP53 -s 9606 -n 20 -c 10
+```
+or
+```bash
+python graph_compression.py -d /my_path/TP53_interaction_network.csv -n 20 -c 10
+# TP53_interaction_network.csv is available as test dataset in example_output/output_files/interaction_network
+```
+
 ## Classes and Methods
 
 ### Protein
@@ -96,7 +122,7 @@ stringId_A,stringId_B,preferredName_A,preferredName_B,ncbiTaxonId,score,nscore,f
 
 ### DataFrame
 #### `__init__(self, input_df)`
-Initializes a DataFrame object with an input CSV file.
+Initializes a DataFrame object with an input CSV file. Note: dataset must be formatted like STRING interaction network datasets. 
 
 #### `get_input_df_name(self)`
 Returns the name of the input DataFrame file.
@@ -124,7 +150,7 @@ Initializes a Network object with the following parameters:
 >>> Network.create_graph()
 <networkx.classes.graph.Graph object at 0x7fdba4b0e6a0>
 ```
-![Original_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/example_output/output_files/original_graph/TP53/TP53_original_graph.png)
+![Original_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/GraphCompression/example_output/output_files/original_graph/TP53/TP53_21_nodes_original_graph.png)
 
 #### `cluster_nodes(self, num_clusters)`
 - **Description:** Applies spectral clustering to the graph nodes.
@@ -161,7 +187,7 @@ Initializes a Network object with the following parameters:
 (<networkx.classes.graph.Graph object at 0x7fdba4b0e6a0>, 
 {0: ['ENSP1', 'ENSP3'], 1: ['ENSP2'], 2: ['ENSP4']})
 ```
-![Compressed_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/example_output/output_files/compressed_graph/TP53/TP53_10_clusters_compressed_graph_.png)
+![Compressed_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/GraphCompression/example_output/output_files/compressed_graph/TP53/TP53_10_clusters_compressed_graph_.png)
 
 #### `get_compressed_interaction_network(self)`
 - **Description:** Computes the compressed interaction network data.
@@ -183,29 +209,3 @@ Parses command-line arguments. Ensures that either a protein name or a data fram
 
 #### `main()`
 Main function that processes command-line arguments and initializes the appropriate Protein or DataFrame object and the Network object.
-
-## Usage
-To run the script, use the following command:
-```bash
-python graph_compression.py -p PROTEIN_NAME -s SPECIES -n NODES_NUMBER -c CLUSTERS_NUMBER
-```
-or
-```bash
-python graph_compression.py -d DATA_FRAME -n NODES_NUMBER -c CLUSTERS_NUMBER
-```
-where:
-- `PROTEIN_NAME` is the name or identifier of the protein.
-- `SPECIES` is the taxonomy identifier of the species (default is 9606 for humans).
-- `NODES_NUMBER` is the number of interacting partners to add.
-- `CLUSTERS_NUMBER` is the number of clusters for spectral clustering.
-- `DATA_FRAME` is the path to the input CSV file.
-
-## Example
-```bash
-python graph_compression.py -p TP53 -s 9606 -n 20 -c 10
-```
-or
-```bash
-python graph_compression.py -d /my_path/TP53_interaction_network.csv -n 20 -c 10
-# TP53_interaction_network.csv is available as test dataset in example_output/output_files/interaction_network
-```
