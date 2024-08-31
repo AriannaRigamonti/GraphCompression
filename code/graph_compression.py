@@ -8,25 +8,41 @@ import io
 import networkx as nx
 import matplotlib.pyplot as plt
 from sklearn.cluster import SpectralClustering
-import subprocess
-import sys
+
+# Define global paths to save all the following outputs
+OUTPUT_FOLDER = 'output_files'
+
+def create_directory(path): # check if the folder exists, otherwise create it. This code will be used many times so I decided to create a function. 
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def get_unique_filepath(filepath):
+    """Generate a unique filepath by appending a suffix if the file already exists."""
+    base, extension = os.path.splitext(filepath) # take file name
+    counter = 1
+    while os.path.exists(filepath):
+        filepath = f"{base}_{counter}{extension}"
+        counter += 1
+    return filepath
 
 class Protein:
-    def __init__(self, name, species, nodes_number):
+    def __init__(self, overwrite, name, species, nodes_number):
+        self.overwrite = overwrite # default = False
         self.name = name
-        self.species = species
+        self.species = species # default = 9606 (human)
         self.nodes_number = nodes_number
-        self.identifier = self.get_identifier()
-        self.interaction_network = self.get_interaction_network()
+        self.identifier = self.get_identifier() # a method of this class
+        self.interaction_network = self.get_interaction_network() # a method of this class
         
     def get_identifier(self): 
-        # Maps common protein names, synonyms and UniProt identifiers into STRING identifiers.
-        # The method sends a GET request to the STRING API to retrieve the protein identifier and returns it if the 
-        # request is successful. If the request fails, it prints an error message and returns None.
-        if self.name: 
+        """Maps common protein names, synonyms and UniProt identifiers into STRING identifiers, that will be used to retreive the interaction network in a unique way.
+        The method sends a GET request to the STRING API to retrieve the protein identifier and returns it if the request is successful. 
+        If the request fails, it prints an error message and returns None."""
+
+        if self.name: # if protein name was given we will use this method (if instead dataset was given, we skip this part)
             print("Getting protein identifier...")
 
-            # URL of the network image endpoint in the STRING API
+            # URL of the network in the STRING API
             string_identifier_url = "https://string-db.org/api/tsv/get_string_ids?"
             
             # Parameters for the request
@@ -40,7 +56,8 @@ class Protein:
             
             # Check the status of the request
             if http_response.status_code == 200:
-                # Read the response into a DataFrame
+
+                # Read the response into a pd DataFrame
                 df_identifier = pd.read_csv(io.StringIO(http_response.text), sep='\t')
                 
                 # Get the value from the second column
@@ -50,13 +67,13 @@ class Protein:
                 # If the request fails, print an error message
                 print(f"Error in request: {http_response.status_code}")
             
-            return string_identifier
+            return string_identifier # it will be used to get the interactoin network when only protein name is given
         
     def get_interaction_network(self): 
         # Retrieves the network interactions for the input protein 
         print("Getting interaction network...")
     
-        # URL of the interaction partners endpoint in the STRING API
+        # URL of the interaction partners in the STRING API
         string_interaction_network = "https://string-db.org/api/tsv/network?"
 
         # Parameters for the request
@@ -71,60 +88,62 @@ class Protein:
 
         # Check the status of the request
         if http_response.status_code == 200:
+
             # Parse the response as a DataFrame
             interaction_network = pd.read_csv(io.StringIO(http_response.text), sep='\t')
-        
-            # Create directory to store interaction data if it doesn't exist
-            folder = 'output_files'
-            if not os.path.exists(folder):
-                os.makedirs(folder)
 
-            subdirectory1 = os.path.join(folder, 'interaction_networks')
-            if not os.path.exists(subdirectory1):
-                os.makedirs(subdirectory1)
+            # Save the file 
+            subdirectory = os.path.join(OUTPUT_FOLDER, 'interaction_network', self.name)
+            create_directory(subdirectory)
 
-            subdirectory2 = os.path.join(subdirectory1, self.name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            # Save DataFrame to a CSV file
-            csv_file_path = os.path.join(subdirectory2, f"{self.name}_interaction_network.csv")
-            interaction_network.to_csv(csv_file_path, index=False)
+            csv_file_path = os.path.join(subdirectory, f"{self.name}_{self.nodes_number}_nodes_interaction_network.csv")
+                           
+            if self.overwrite is False:   
+                csv_file_path = get_unique_filepath(csv_file_path) # do not overwrite, but add _counter at the end 
             
+            interaction_network.to_csv(csv_file_path, index=False)
+
+            return interaction_network
+
         else:
-            # If the request fails, print an error message
             print(f"Error > Status code: {http_response.status_code}")
 
-        return interaction_network
+            return None
     
 class DataFrame:
     def __init__(self, input_df):
         self.input_df = pd.read_csv(input_df)
         self.df = input_df
-        self.input_df_name =  self.get_input_df_name()
+        self.input_df_name =  self.get_input_df_name() # a method of this class
 
     def get_input_df_name(self):
-        # Returns the name of the input DataFrame file (if available).
+        """Returns the name of the input DataFrame file."""
         input_df_name = os.path.basename(self.df)
         return input_df_name 
 
 class Network:
-    def __init__(self, cluster_number, protein = None, dataframe = None):
+    def __init__(self, overwrite, cluster_number, protein = None, dataframe = None):
+        self.overwrite = overwrite
         self.cluster_number = cluster_number
         if protein is not None: 
             self.protein = protein
+            self.dataframe = None
         elif dataframe is not None: 
             self.dataframe = dataframe
-        self.G = self.create_graph()
-        self.compressed_graph, self.node_original_mapping = self.compress_graph()
-        self.compressed_interaction_network = self.get_compressed_interaction_network()
+            self.protein = None
+        self.G = self.create_graph() # a method of this class
+        self.compressed_graph, self.node_original_mapping = self.compress_graph() # a method of this class
+        self.compressed_interaction_network = self.get_compressed_interaction_network() # a method of this class
         
     def create_graph(self):
-        """Creates a graph from the interaction network data."""
-
+        """Creates a graph from the interaction network data"""
         print("Creating graph...") 
+
         # if dataframe is given it creates the network directly (otherwise the interaction data is retrieved from the protein name).
-        interaction_network = self.protein.interaction_network if self.protein else self.dataframe.input_df
+        if self.protein is not None:
+            interaction_network = self.protein.interaction_network
+        else:
+            interaction_network = self.dataframe.input_df
 
         # Create an empty graph
         G = nx.Graph()
@@ -136,51 +155,32 @@ class Network:
                 G.add_node(row['preferredName_B'])
                 G.add_edge(row['preferredName_A'], row['preferredName_B'], weight=row['score'])
 
-                # note: score = combined score of: 
-                        #nscore	= gene neighborhood score
-                        #fscore	= gene fusion score
-                        #pscore	= phylogenetic profile score
-                        #ascore	= coexpression score
-                        #escore	= experimental score
-                        #dscore	= database score
-                        #tscore	= textmining score
+                # note: score is the combined score of: 
+                        # nscore: gene neighborhood score
+                        # fscore: gene fusion score
+                        # pscore: phylogenetic profile score
+                        # ascore: coexpression score
+                        # escore: experimental score
+                        # dscore: database score
+                        # tscore: textmining score
 
             # Draw the graph
             plt.figure(figsize=(12, 8))
             pos = nx.spring_layout(G, seed=42)  # Nodes position
             nx.draw(G, pos, with_labels=True, node_size=1000, node_color='skyblue', font_size=8, font_weight='bold') 
+            plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)-1} nodes) for {self.protein.name}') if self.protein else plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)-1} nodes) for {self.dataframe.input_df_name}')
 
-            plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)} nodes) for {self.protein.name}') if self.protein else plt.gcf().suptitle(f'Protein Interaction Network ({len(G.nodes)} nodes) for {self.dataframe.input_df_name}')
+            # Store the graph png in the directory
+            subdirectory = os.path.join(OUTPUT_FOLDER, 'original_graph', self.protein.name if self.protein else self.dataframe.input_df_name)
+            create_directory(subdirectory)
+            if self.protein:
+                file_path = os.path.join(subdirectory, f'{self.protein.name if self.protein else self.dataframe.input_df_name}_{len(G.nodes)-1}_nodes_original_graph.png')
+            else:
+                file_path = os.path.join(subdirectory, f'{self.dataframe.input_df_name}_original_graph.png')
 
-            # Create directory to store graph png
-            folder = 'output_files'
-            if not os.path.exists(folder):
-                os.makedirs(folder)
-
-            subdirectory1 = os.path.join(folder, 'original_graph')
-            if not os.path.exists(subdirectory1):
-                os.makedirs(subdirectory1)
-
-            if self.protein is not None:
-
-                # Create a subdirectory using the protein name
-                subdirectory2 = os.path.join(subdirectory1, self.protein.name)
-                if not os.path.exists(subdirectory2):
-                    os.makedirs(subdirectory2)
-
-                # Define the file path for saving the PNG file
-                file_path = os.path.join(subdirectory2, f'{self.protein.name}_{len(G.nodes)}_nodes_original_graph.png')
-
-            elif self.dataframe is not None: 
-
-                # Create a subdirectory using the df name
-                subdirectory2 = os.path.join(subdirectory1, self.dataframe.input_df_name)
-                if not os.path.exists(subdirectory2):
-                    os.makedirs(subdirectory2)
-
-                # Define the file path for saving the PNG file
-                file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}__{len(G.nodes)}_nodes_original_graph.png')
-
+            if self.overwrite is not False:
+                file_path = get_unique_filepath(file_path) # do not overwrite
+            
             plt.savefig(file_path, format='png')
 
         except (pd.errors.EmptyDataError, FileNotFoundError) as e:
@@ -195,7 +195,7 @@ class Network:
             # Convert the graph to a numpy adjacency matrix
             adjacency_matrix = nx.to_numpy_array(self.G)
 
-            # Perform spectral clustering
+            # Perform Spectral Clustering (this is one of the many options to compress graphs. I choose this just because I read that it is widely used with networks).
             spectral = SpectralClustering(n_clusters=num_clusters, affinity='precomputed', random_state=42)
             cluster_labels = spectral.fit_predict(adjacency_matrix)
 
@@ -211,7 +211,7 @@ class Network:
     def contract_edges(self, node_cluster_mapping):
         """Contracts the edges between nodes belonging to the same cluster."""
 
-         # Create a new graph for the contracted version
+        # Create a new graph for the contracted version
         compressed_graph = nx.Graph()
 
         try:
@@ -244,46 +244,32 @@ class Network:
         # Reshape the data for DataFrame creation
         data = [(compressed_node, original_nodes[0]) for compressed_node, original_nodes in node_original_mapping.items()]
 
-        #Create the DataFrame
+        # Create the DataFrame
         mapping_df = pd.DataFrame(data, columns=['New_node', 'Original_nodes'])
 
         # Save the mapping to a CSV file
-        folder = 'output_files'
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-
-        subdirectory1 = os.path.join(folder, 'node_mapping')
-        if not os.path.exists(subdirectory1):
-            os.makedirs(subdirectory1)
-
-        if self.protein is not None:
-
-            subdirectory2 = os.path.join(subdirectory1, self.protein.name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            file_path = os.path.join(subdirectory2, f'{self.protein.name}_{num_clusters}_clusters_node_mapping.csv')
-            mapping_df.to_csv(file_path, index=False)
-
-        elif self.dataframe is not None: 
-
-            subdirectory2 = os.path.join(subdirectory1, self.dataframe.input_df_name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}_{num_clusters}_clusters_node_mapping.csv')
-            mapping_df.to_csv(file_path, index=False)
+        subdirectory = os.path.join(OUTPUT_FOLDER, 'node_mapping', self.protein.name if self.protein else self.dataframe.input_df_name)
+        create_directory(subdirectory)
+        if self.protein: 
+            file_path = os.path.join(subdirectory, f'{self.protein.name}_{self.protein.nodes_number}_to_{self.cluster_number}_mapping.csv')
+        else:
+            file_path = os.path.join(subdirectory, f'{self.dataframe.input_df_name}_to_{self.cluster_number}_mapping.csv')
+        
+        if self.overwrite is not False:
+            file_path = get_unique_filepath(file_path) # do not overwrite
+        
+        mapping_df.to_csv(file_path, index=False)
 
         # Creation of the compressed graph
         plt.figure(figsize=(12, 8))
         pos = nx.spring_layout(compressed_graph, seed=42)  
         nx.draw(compressed_graph, pos, with_labels=True, node_size=1000, node_color='skyblue', font_size=8, font_weight='bold')  
         
-        if self.protein is not None:
-            plt.gcf().suptitle(f'Compressed Protein Interaction Network ({num_clusters} clusters) for {self.protein.name}')
+        if self.protein:
+            plt.gcf().suptitle(f'Compressed Protein Interaction Network ({self.protein.nodes_number} to {num_clusters}) for {self.protein.name}')
 
-        elif self.dataframe is not None:
-            plt.gcf().suptitle(f'Compressed Protein Interaction Network ({num_clusters} clusters) for {self.dataframe.input_df_name}')
+        else:
+            plt.gcf().suptitle(f'Compressed Protein Interaction Network (to {num_clusters}) for {self.dataframe.input_df_name}')
             
         # Add legend with mapping information from DataFrame
         for i, row in mapping_df.iterrows():
@@ -291,37 +277,25 @@ class Network:
             plt.subplots_adjust(right=0.7, top=0.9)
 
         # Save the compressed graph as a PNG image
-        folder = 'output_files'
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        subdirectory = os.path.join(OUTPUT_FOLDER, 'compressed_graph', self.protein.name if self.protein else self.dataframe.input_df_name)
+        create_directory(subdirectory)
+        if self.protein:
+            file_path = os.path.join(subdirectory, f'{self.protein.name}_{self.protein.nodes_number}_to_{num_clusters}_compressed_graph_.png')
+        else:
+            file_path = os.path.join(subdirectory, f'to_{num_clusters}_compressed_graph_.png')
 
-        subdirectory1 = os.path.join(folder, 'compressed_graph')
-        if not os.path.exists(subdirectory1):
-            os.makedirs(subdirectory1)
-
-        if self.protein is not None: 
-
-            subdirectory2 = os.path.join(subdirectory1, self.protein.name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            file_path = os.path.join(subdirectory2, f'{self.protein.name}_{num_clusters}_clusters_compressed_graph_.png')
-            plt.savefig(file_path, format='png')
-
-        elif self.dataframe is not None:
-
-            subdirectory2 = os.path.join(subdirectory1, self.dataframe.input_df_name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}_{num_clusters}_clusters_compressed_graph_.png')
-            plt.savefig(file_path, format='png')
-
+        if self.overwrite is not False:
+            file_path = get_unique_filepath(file_path) # do not overwrite
+        
+        plt.savefig(file_path, format='png')
+        
         return compressed_graph, node_original_mapping
 
     def get_compressed_interaction_network(self):
         """Retrieves the interaction network for the compressed graph."""
         print("Computing compressed network...")
+
+        num_clusters = self.cluster_number
 
         interactions = []
 
@@ -350,30 +324,17 @@ class Network:
         compressed_interaction_df = compressed_interaction_df.reindex(columns=new_column_order)   
 
         # Save the DataFrame as a CSV file
-        folder = 'output_files'
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-
-        subdirectory1 = os.path.join(folder, 'compressed_interaction_network')
-        if not os.path.exists(subdirectory1):
-            os.makedirs(subdirectory1)
-
-        if self.protein is not None: 
-
-            subdirectory2 = os.path.join(subdirectory1, self.protein.name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            file_path = os.path.join(subdirectory2, f'{self.protein.name}_{self.cluster_number}_clusters_compressed_interaction_network.csv')
-            compressed_interaction_df.to_csv(file_path, index=False)
-
-        elif self.dataframe is not None: 
-            subdirectory2 = os.path.join(subdirectory1, self.dataframe.input_df_name)
-            if not os.path.exists(subdirectory2):
-                os.makedirs(subdirectory2)
-
-            file_path = os.path.join(subdirectory2, f'{self.dataframe.input_df_name}_{self.cluster_number}_clusters_compressed_interaction_network.csv')
-            compressed_interaction_df.to_csv(file_path, index=False)
+        subdirectory = os.path.join(OUTPUT_FOLDER, 'compressed_interaction_network', self.protein.name if self.protein else self.dataframe.input_df_name)
+        create_directory(subdirectory)
+        if self.protein:
+         file_path = os.path.join(subdirectory, f'{self.protein.name}_{self.protein.nodes_number}_to_{num_clusters}_compressed_interaction_network.csv')
+        else:
+            file_path = os.path.join(subdirectory, f'to_{num_clusters}_compressed_interaction_network.csv')
+       
+        if self.overwrite is not False:
+            file_path = get_unique_filepath(file_path)
+        
+        compressed_interaction_df.to_csv(file_path, index=False)
 
         # Find the full path to the current script
         script_path = os.path.realpath(__file__)
@@ -392,8 +353,9 @@ def parse_args():
         parser.add_argument('-p', '--protein_name', type=str, required=False, help='Protein name or identifier')
         parser.add_argument('-s', '--species', type=int, default=9606, help='Taxonomy identifier of species (e.g Human is 9606)')
         parser.add_argument('-d', '--data_frame', type=str, required=False, help='Input dataframe in CSV format')
-        parser.add_argument('-n', '--nodes_number', type=int, required=True, help='Number of interacting partners')
+        parser.add_argument('-n', '--nodes_number', type=int, required=False, help='Number of interacting partners')
         parser.add_argument('-c', '--clusters_number', type=int, required=True, help='Number of clusters for spectral clustering')
+        parser.add_argument('-o', '--overwrite', type = bool, default=False, help='Input if want to overwrite files with same name')
         args = parser.parse_args()
 
         # Check if both -p and -d are provided
@@ -406,11 +368,8 @@ def parse_args():
 
         return args
     
-    except argparse.ArgumentParserError as e:
-        print(f"Error parsing arguments: {e}")
-        exit(1)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred in argparse: {e}")
         exit(1)
 
 def main():
@@ -421,13 +380,14 @@ def main():
     input_df = args.data_frame
     nodes_number = args.nodes_number
     clusters_number = args.clusters_number
+    overwrite = args.overwrite
     
     if protein_name:
-        protein = Protein(protein_name, species, nodes_number)
-        network = Network(clusters_number, protein=protein)
+        protein = Protein(overwrite, protein_name, species, nodes_number)
+        network = Network(overwrite, clusters_number, protein=protein)
     elif input_df:
         df = DataFrame(input_df)
-        network = Network(clusters_number, dataframe=df)
+        network = Network(overwrite, clusters_number, dataframe=df)
     else:
         print("Either protein_name or data_frame must be provided.")
 

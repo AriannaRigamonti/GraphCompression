@@ -22,6 +22,8 @@ Graph Compression is a Python script designed to condense protein interaction ne
 - Compress the network based on the clustering results.
 - Visualize and save the compressed network graph.
 - Save the compressed interaction network data as a CSV file.
+- Option to overwrite existing files or create unique filenames to prevent overwriting.
+
 
 ## Instructions before running the script
 
@@ -58,11 +60,11 @@ pip install requests pandas networkx matplotlib scikit-learn
 ## Usage
 To run the script, use the following command:
 ```bash
-python graph_compression.py -p PROTEIN_NAME -s SPECIES -n NODES_NUMBER -c CLUSTERS_NUMBER
+python graph_compression.py -p PROTEIN_NAME -s SPECIES -n NODES_NUMBER -c CLUSTERS_NUMBER -o OVERWRITE
 ```
 or
 ```bash
-python graph_compression.py -d DATA_FRAME -n NODES_NUMBER -c CLUSTERS_NUMBER
+python graph_compression.py -d DATA_FRAME -n NODES_NUMBER -c CLUSTERS_NUMBER -o OVERWRITE
 ```
 where:
 - `PROTEIN_NAME` is the name or identifier of the protein.
@@ -70,22 +72,24 @@ where:
 - `NODES_NUMBER` is the number of interacting partners to add.
 - `CLUSTERS_NUMBER` is the number of clusters for spectral clustering.
 - `DATA_FRAME` is the path to the input CSV file.
+- `OVERWRITE` is a boolean flag to specify whether to overwrite existing files.
 
 ## Example
 ```bash
-python graph_compression.py -p TP53 -s 9606 -n 20 -c 10
+python graph_compression.py -p TP53 -s 9606 -n 20 -c 10 -o True
 ```
 or
 ```bash
-python graph_compression.py -d /my_path/TP53_interaction_network.csv -n 20 -c 10
+python graph_compression.py -d /my_path/TP53_interaction_network.csv -n 20 -c 10 -o True
 # TP53_interaction_network.csv is available as test dataset in example_output/output_files/interaction_network
 ```
 
 ## Classes and Methods
 
 ### Protein
-#### `__init__(self, name, species, nodes_number)`
+#### `__init__(self, overwrite name, species, nodes_number)`
 Initializes a Protein object with the following parameters:
+- `overwrite`: Boolean flag to specify whether to overwrite existing files.
 - `name`: Name or identifier of the protein.
 - `species`: Taxonomic identifier of the species (e.g., 9606 for humans).
 - `nodes_number`: Number of interacting partners to add.
@@ -135,8 +139,9 @@ Returns the name of the input DataFrame file.
 ```
 
 ### Network
-#### `__init__(self, cluster_number, protein=None, dataframe=None)`
+#### `__init__(self, overwrite, cluster_number, protein=None, dataframe=None)`
 Initializes a Network object with the following parameters:
+- `overwrite`: Boolean flag to specify whether to overwrite existing files.
 - `cluster_number`: Number of clusters for spectral clustering.
 - `protein`: Protein object (optional).
 - `dataframe`: DataFrame object (optional).
@@ -150,7 +155,8 @@ Initializes a Network object with the following parameters:
 >>> Network.create_graph()
 <networkx.classes.graph.Graph object at 0x7fdba4b0e6a0>
 ```
-![Original_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/GraphCompression/example_output/output_files/original_graph/TP53/TP53_21_nodes_original_graph.png)
+![Original_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/GraphCompression/example_output/output_files/original_graph/TP53/TP53_20_nodes_original_graph.png)
+
 
 #### `cluster_nodes(self, num_clusters)`
 - **Description:** Applies spectral clustering to the graph nodes.
@@ -187,7 +193,7 @@ Initializes a Network object with the following parameters:
 (<networkx.classes.graph.Graph object at 0x7fdba4b0e6a0>, 
 {0: ['ENSP1', 'ENSP3'], 1: ['ENSP2'], 2: ['ENSP4']})
 ```
-![Compressed_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/GraphCompression/example_output/output_files/compressed_graph/TP53/TP53_10_clusters_compressed_graph_.png)
+![Compressed_graph](/Users/ariannarigamonti/Library/CloudStorage/OneDrive-UniversitàdegliStudidiMilano/Università/Bioinformatics/I anno/II semestre/Scientific programming/Projects/Python/GraphCompression/example_output/output_files/compressed_graph/TP53/TP53_20_to_10_compressed_graph_.png)
 
 #### `get_compressed_interaction_network(self)`
 - **Description:** Computes the compressed interaction network data.
@@ -204,8 +210,27 @@ clusterA,clusterB,preferred_nameA,preferred_nameB,score
 ```
 
 ### Functions
+
+#### `create_directory(path)`
+Checks if a directory exists, and if not, creates it.
+
+#### `get_unique_filepath(filepath)`
+Generates a unique filepath by appending a suffix if the file already exists.
+
 #### `parse_args()`
 Parses command-line arguments. Ensures that either a protein name or a data frame is provided, but not both simultaneously.
 
 #### `main()`
 Main function that processes command-line arguments and initializes the appropriate Protein or DataFrame object and the Network object.
+
+### Generated Outputs
+- **Interaction Network CSV**: The script saves the interaction network data as a CSV file.
+- **Original Graph PNG**: The script saves the original interaction network graph as a PNG image.
+- **Compressed Graph PNG**: The script saves the compressed interaction network graph as a PNG image.
+- **Node Mapping CSV**: The script saves the mapping of original nodes to clusters as a CSV file.
+- **Compressed Interaction Network CSV**: The script saves the compressed interaction network data as a CSV file.
+
+### Conlusion
+This script offers a comprehensive solution for compressing and analyzing protein interaction networks. By leveraging the STRING API and spectral clustering, users can gain insights into the simplified structure of complex interaction networks. The script is flexible, allowing for data input either via protein names or existing CSV datasets, and ensures that all results are saved in a well-organized manner.
+
+For any issues or contributions, please refer to the author.
